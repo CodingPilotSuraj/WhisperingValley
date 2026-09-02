@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Whispering Valley — Immersive 3D WebXR World Exploration</title>
+
+    <!-- A-Frame Core 1.6.0 & Reliable Community Extensions via CDN -->
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-environment-component@v1.3.4/dist/aframe-environment-component.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@v7.5.0/dist/aframe-extras.min.js"></script>
+
+    <!-- Google Fonts for Modern UI -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --accent: #10b981;
+            --gold: #f59e0b;
+            --bg-glass: rgba(15, 23, 42, 0.75);
+            --border-glass: rgba(255, 255, 255, 0.15);
+            --text-light: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Outfit', sans-serif;
+            background-color: #050b14;
+            color: var(--text-light);
+        }
+
+        /* Fullscreen WebGL Canvas Container */
+        a-scene {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Modern Glassmorphic UI Overlay Layer */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 24px;
+            transition: opacity 0.5s ease;
+        }
+
+        /* Top HUD Bar */
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+            pointer-events: auto;
+        }
+
+        .brand-badge {
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .brand-icon {
+            width: 12px;
+            height: 12px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 12px var(--accent);
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.4); opacity: 1; }
+        }
+
+        .brand-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: 0.5px;
+            background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Metrics Tracker Panel */
+        .stats-container {
+            display: flex;
+            gap: 12px;
+        }
+
+        .stat-card {
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 10px 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            min-width: 110px;
+        }
+
+        .stat-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-top: 2px;
+        }
+
+        .stat-value span.gold { color: var(--gold); }
+        .stat-value span.cyan { color: #38bdf8; }
+
+        /* Mini Compass Display */
+        .compass-box {
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            border-radius: 50%;
+            width: 52px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            position: relative;
+        }
+
+        .compass-arrow {
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(to bottom, #ef4444 50%, #e2e8f0 50%);
+            border-radius: 2px;
+            transition: transform 0.1s ease-out;
+        }
+
+        .compass-n {
+            position: absolute;
+            top: 4px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #ef4444;
+        }
+
+        /* Toast Notifications */
+        #notification-toast {
+            position: absolute;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--gold);
+            border-radius: 30px;
+            padding: 12px 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 0 24px rgba(245, 158, 11, 0.3);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 20;
+        }
+
+        #notification-toast.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast-icon {
+            font-size: 1.4rem;
+        }
+
+        .toast-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--gold);
+        }
+
+        .toast-desc {
+            font-size: 0.82rem;
+            color: var(--text-light);
+        }
+
+        /* Interactive Crosshair for Mouse/Non-VR */
+        .reticle-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            margin-top: -4px;
+            margin-left: -4px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 5;
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+
+        .reticle-dot.hovered {
+            transform: scale(2.2);
+            background: var(--gold);
+            box-shadow: 0 0 10px var(--gold);
+        }
+
+        /* Bottom Controls Bar */
+        .hud-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            width: 100%;
+            pointer-events: auto;
+        }
+
+        .controls-hint {
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 12px 20px;
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .key-badge {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            padding: 3px 7px;
+            font-weight: 700;
+            color: #ffffff;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
+        /* Action Buttons */
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-action {
+            background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%);
+            border: none;
+            color: white;
+            padding: 14px 28px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px var(--primary-glow);
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 28px var(--primary-glow);
+            filter: brightness(1.1);
+        }
+
+        .btn-vr {
+            background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-vr:hover {
+            box-shadow: 0 10px 28px rgba(16, 185, 129, 0.5);
+        }
+
+        /* Modal Card for Lore / Sign Inspection */
+        #info-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+            width: 90%;
+            max-width: 440px;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--gold);
+            border-radius: 24px;
+            padding: 28px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 30;
+        }
+
+        #info-modal.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .modal-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.4rem;
+            color: var(--gold);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-body {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #cbd5e1;
+            margin-bottom: 20px;
+        }
+
+        .modal-btn {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-glass);
+            color: white;
+            padding: 12px;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .modal-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Start / Welcome Overlay Screen */
+        #welcome-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(15, 23, 42, 0.85) 0%, rgba(5, 11, 20, 0.98) 100%);
+            backdrop-filter: blur(16px);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            text-align: center;
+            transition: opacity 0.6s ease, visibility 0.6s ease;
+        }
+
+        #welcome-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .hero-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-subtitle {
+            font-size: 1.15rem;
+            color: #64748b;
+            max-width: 540px;
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            max-width: 700px;
+            margin-bottom: 36px;
+            text-align: left;
+        }
+
+        .feature-box {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 18px;
+        }
+
+        .feature-box h4 {
+            color: #38bdf8;
+            font-size: 0.95rem;
+            margin-bottom: 6px;
+        }
+
+        .feature-box p {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+
+        .welcome-btns {
+            display: flex;
+            gap: 16px;
+        }
+
+        /* VR Mode Hide Class */
+        .vr-hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .features-grid { grid-template-columns: 1fr; }
+            .hero-title { font-size: 2.2rem; }
+            .controls-hint { display: none; }
+        }
+    </style>
+
+    <!-- Custom JavaScript A-Frame Components & Procedural Web Audio Engine -->
+    <script>
+        /* =========================================================================
+           1. Web Audio API Procedural Sound Engine (Zero external files needed)
+           ========================================================================= */
+        const SoundFX = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playClick() {
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            },
+            playCollect() {
+                this.init();
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6 arpeggio
+                notes.forEach((freq, index) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + index * 0.06);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime + index * 0.06);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + index * 0.06 + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + index * 0.06);
+                    osc.stop(this.ctx.currentTime + index * 0.06 + 0.3);
+                });
+            },
+            playDiscovery() {
+                this.init();
+                const chord = [392.00, 493.88, 587.33, 783.99]; // G Major majestic chord
+                chord.forEach((freq) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 1.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 1.2);
+                });
+            },
+            playDoor() {
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(90, this.ctx.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.4);
+            }
+        };
+
+        /* =========================================================================
+           2. Exploration Zones Manager Component
+           ========================================================================= */
+        AFRAME.registerComponent('zone-tracker', {
+            schema: {
+                cameraEl: { type: 'selector', default: '#camera' }
+            },
+            init() {
+                this.zones = [
+                    { id: 'village', name: 'Whispering Village', pos: { x: 0, z: 10 }, radius: 14, discovered: false, desc: 'A peaceful cabin haven surrounded by quiet woods.' },
+                    { id: 'forest', name: 'Mystic Pine Grove', pos: { x: -35, z: -25 }, radius: 16, discovered: false, desc: 'Ancient pine trees surrounding a glowing stone altar.' },
+                    { id: 'peak', name: 'Mountain Peak Lookout', pos: { x: 35, z: -40 }, radius: 18, discovered: false, desc: 'High elevation pavilion with sweeping views of the realm.' },
+                    { id: 'river', name: 'Crystal River Springs', pos: { x: -15, z: 25 }, radius: 15, discovered: false, desc: 'Fresh flowing waters with lily pads and wooden docks.' },
+                    { id: 'cave', name: 'Hidden Crystal Cave', pos: { x: 40, z: 20 }, radius: 14, discovered: false, desc: 'A secluded cavern filled with luminescent gems.' },
+                    { id: 'ruins', name: 'Ancient Watchtower Ruins', pos: { x: 0, z: -55 }, radius: 18, discovered: false, desc: 'Weathered stone arches echoing memories of past guardians.' }
+                ];
+                this.discoveredCount = 0;
+                this.checkInterval = 400;
+                this.lastCheck = 0;
+            },
+            tick(time) {
+                if (time - this.lastCheck < this.checkInterval) return;
+                this.lastCheck = time;
+
+                if (!this.data.cameraEl) return;
+                const camPos = this.data.cameraEl.object3D.getWorldPosition(new THREE.Vector3());
+
+                this.zones.forEach(zone => {
+                    if (!zone.discovered) {
+                        const dist = Math.hypot(camPos.x - zone.pos.x, camPos.z - zone.pos.z);
+                        if (dist < zone.radius) {
+                            zone.discovered = true;
+                            this.discoveredCount++;
+                            this.triggerDiscovery(zone);
+                        }
+                    }
+                });
+            },
+            triggerDiscovery(zone) {
+                // Update HUD
+                document.getElementById('zone-count').innerHTML = `<span class="cyan">${this.discoveredCount}</span> / 6`;
+                
+                // Play SFX
+                SoundFX.playDiscovery();
+
+                // Show Toast UI
+                const toast = document.getElementById('notification-toast');
+                document.getElementById('toast-title').textContent = `Discovered: ${zone.name}`;
+                document.getElementById('toast-desc').textContent = zone.desc;
+                toast.classList.add('active');
+
+                // VR 3D World Toast Banner
+                this.showVRToast(zone.name);
+
+                setTimeout(() => {
+                    toast.classList.remove('active');
+                }, 4500);
+            },
+            showVRToast(zoneName) {
+                const camera = document.getElementById('camera');
+                if (!camera) return;
+                
+                const vrBanner = document.createElement('a-entity');
+                vrBanner.setAttribute('position', '0 0.5 -1.8');
+                vrBanner.setAttribute('text', {
+                    value: `✨ DISCOVERED ✨\n${zoneName}`,
+                    align: 'center',
+                    color: '#F59E0B',
+                    width: 3.5,
+                    font: 'kearsing'
+                });
+                vrBanner.setAttribute('animation', 'property: position; to: 0 0.7 -1.8; dur: 2500; easing: easeOutQuad');
+                vrBanner.setAttribute('animation__fade', 'property: components.text.material.settings.opacity; to: 0; dur: 1000; delay: 1500');
+
+                camera.appendChild(vrBanner);
+                setTimeout(() => {
+                    if (vrBanner.parentNode) vrBanner.parentNode.removeChild(vrBanner);
+                }, 2600);
+            }
+        });
+
+        /* =========================================================================
+           3. Collectible Relic Component
+           ========================================================================= */
+        let totalRelicsFound = 0;
+        AFRAME.registerComponent('collectible-item', {
+            schema: {
+                name: { type: 'string', default: 'Ancient Gem' }
+            },
+            init() {
+                this.el.classList.add('interactive');
+                
+                // Add floating rotation animation
+                this.el.setAttribute('animation__rot', 'property: rotation; to: 0 360 0; loop: true; dur: 6000; easing: linear');
+                this.el.setAttribute('animation__bob', 'property: position; dir: alternate; loop: true; dur: 1500; easing: easeInOutSine; to: ' + 
+                    `${this.el.object3D.position.x} ${this.el.object3D.position.y + 0.3} ${this.el.object3D.position.z}`);
+
+                // Click / VR Controller Trigger interaction
+                this.el.addEventListener('click', () => {
+                    this.collect();
+                });
+
+                // Hover visual feedback
+                this.el.addEventListener('mouseenter', () => {
+                    this.el.setAttribute('scale', '1.3 1.3 1.3');
+                    document.getElementById('reticle').classList.add('hovered');
+                });
+                this.el.addEventListener('mouseleave', () => {
+                    this.el.setAttribute('scale', '1 1 1');
+                    document.getElementById('reticle').classList.remove('hovered');
+                });
+            },
+            collect() {
+                SoundFX.playCollect();
+                totalRelicsFound++;
+                
+                document.getElementById('relic-count').innerHTML = `<span class="gold">${totalRelicsFound}</span> / 5`;
+                document.getElementById('reticle').classList.remove('hovered');
+
+                // Particle burst & pickup toast
+                const pos = this.el.object3D.position;
+                const toast = document.getElementById('notification-toast');
+                document.getElementById('toast-title').textContent = `Collected: ${this.data.name}`;
+                document.getElementById('toast-desc').textContent = `Relic acquired! (${totalRelicsFound}/5 total relics found)`;
+                toast.classList.add('active');
+
+                setTimeout(() => { toast.classList.remove('active'); }, 3000);
+
+                // Shrink and remove entity
+                this.el.removeAttribute('animation__bob');
+                this.el.setAttribute('animation__shrink', `property: scale; to: 0 0 0; dur: 400; easing: easeInBack`);
+                setTimeout(() => {
+                    if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
+                }, 450);
+            }
+        });
+
+        /* =========================================================================
+           4. Interactive Door Component
+           ========================================================================= */
+        AFRAME.registerComponent('interactive-door', {
+            init() {
+                this.isOpen = false;
+                this.el.classList.add('interactive');
+                
+                this.el.addEventListener('click', () => {
+                    SoundFX.playDoor();
+                    this.isOpen = !this.isOpen;
+                    const targetRot = this.isOpen ? '0 -105 0' : '0 0 0';
+                    this.el.setAttribute('animation', `property: rotation; to: ${targetRot}; dur: 800; easing: easeOutCubic`);
+                });
+
+                this.el.addEventListener('mouseenter', () => {
+                    document.getElementById('reticle').classList.add('hovered');
+                });
+                this.el.addEventListener('mouseleave', () => {
+                    document.getElementById('reticle').classList.remove('hovered');
+                });
+            }
+        });
+
+        /* =========================================================================
+           5. Interactive Signpost Component
+           ========================================================================= */
+        AFRAME.registerComponent('interactive-sign', {
+            schema: {
+                title: { type: 'string', default: 'Wayfinding Sign' },
+                text: { type: 'string', default: 'Pathways lead to adventure.' }
+            },
+            init() {
+                this.el.classList.add('interactive');
+                this.el.addEventListener('click', () => {
+                    SoundFX.playClick();
+                    const modal = document.getElementById('info-modal');
+                    document.getElementById('modal-title').textContent = this.data.title;
+                    document.getElementById('modal-body').textContent = this.data.text;
+                    modal.classList.add('active');
+                });
+
+                this.el.addEventListener('mouseenter', () => {
+                    document.getElementById('reticle').classList.add('hovered');
+                });
+                this.el.addEventListener('mouseleave', () => {
+                    document.getElementById('reticle').classList.remove('hovered');
+                });
+            }
+        });
+
+        /* =========================================================================
+           6. Swaying Environmental Animation Component (Trees/Vegetation/Lanterns)
+           ========================================================================= */
+        AFRAME.registerComponent('sway', {
+            schema: {
+                speed: { type: 'number', default: 2 },
+                amount: { type: 'number', default: 3 }
+            },
+            init() {
+                this.initialRot = Object.assign({}, this.el.getAttribute('rotation') || { x: 0, y: 0, z: 0 });
+            },
+            tick(time) {
+                const s = Math.sin(time * 0.001 * this.data.speed) * this.data.amount;
+                this.el.object3D.rotation.z = THREE.MathUtils.degToRad(this.initialRot.z + s);
+            }
+        });
+
+        /* =========================================================================
+           7. HUD Compass Updater & Player Desktop Sprint/Jump Controller
+           ========================================================================= */
+        AFRAME.registerComponent('player-enhanced-controls', {
+            schema: {
+                rigEl: { type: 'selector', default: '#rig' },
+                cameraEl: { type: 'selector', default: '#camera' }
+            },
+            init() {
+                this.isSprinting = false;
+                this.normalSpeed = 0.25;
+                this.sprintSpeed = 0.55;
+
+                // Keyboard Sprint/Jump Handlers
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === 'Shift') {
+                        this.data.rigEl.setAttribute('movement-controls', `speed: ${this.sprintSpeed}`);
+                    }
+                });
+                window.addEventListener('keyup', (e) => {
+                    if (e.key === 'Shift') {
+                        this.data.rigEl.setAttribute('movement-controls', `speed: ${this.normalSpeed}`);
+                    }
+                });
+            },
+            tick() {
+                if (!this.data.cameraEl) return;
+                // Compass Rotation
+                const camRot = this.data.cameraEl.getAttribute('rotation');
+                if (camRot) {
+                    const compassArrow = document.getElementById('compass-arrow');
+                    if (compassArrow) {
+                        compassArrow.style.transform = `rotate(${camRot.y}deg)`;
+                    }
+                }
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <!-- 2D Web UI Overlay & HUD Layer -->
+    <div id="ui-layer">
+        <!-- Top HUD -->
+        <div class="hud-top">
+            <div class="brand-badge">
+                <div class="brand-icon"></div>
+                <div class="brand-title">WHISPERING VALLEY</div>
+            </div>
+
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-label">Explored</div>
+                    <div class="stat-value" id="zone-count"><span class="cyan">0</span> / 6</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Relics</div>
+                    <div class="stat-value" id="relic-count"><span class="gold">0</span> / 5</div>
+                </div>
+
+                <div class="compass-box" title="Navigation Compass">
+                    <div class="compass-n">N</div>
+                    <div class="compass-arrow" id="compass-arrow"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="notification-toast">
+            <div class="toast-icon">✨</div>
+            <div>
+                <div class="toast-title" id="toast-title">Area Discovered</div>
+                <div class="toast-desc" id="toast-desc">Welcome to the secret zone.</div>
+            </div>
+        </div>
+
+        <!-- Center Crosshair Reticle for Desktop Cursor -->
+        <div class="reticle-dot" id="reticle"></div>
+
+        <!-- Bottom Controls & VR Launcher -->
+        <div class="hud-bottom">
+            <div class="controls-hint">
+                <div><span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> Walk</div>
+                <div><span class="key-badge">Shift</span> Sprint</div>
+                <div><span class="key-badge">Mouse</span> Look Around</div>
+                <div><span class="key-badge">Click</span> Interact</div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-action btn-vr" id="btn-enter-vr" onclick="enterVRSession()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4.2a2 2 0 0 0-1.6.8L13 20.4a1.5 1.5 0 0 1-2 0l-1.2-1.6a2 2 0 0 0-1.6-.8H4a2 2 0 0 1-2-2V8z"/><circle cx="7" cy="12" r="2"/><circle cx="17" cy="12" r="2"/></svg>
+                    ENTER VR (Quest 3S)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lore & Signpost Info Modal Card -->
+    <div id="info-modal">
+        <div class="modal-title">
+            <span id="modal-title">Signpost Landmark</span>
+            <span style="cursor:pointer; font-size:1.2rem;" onclick="closeModal()">✕</span>
+        </div>
+        <div class="modal-body" id="modal-body">
+            Detailed information about the world location will appear here.
+        </div>
+        <button class="modal-btn" onclick="closeModal()">Continue Exploring</button>
+    </div>
+
+    <!-- Welcome Splash Screen Overlay -->
+    <div id="welcome-overlay">
+        <div class="hero-title">WHISPERING VALLEY</div>
+        <div class="hero-subtitle">Step into a vibrant 3D open-world VR exploration experience built for Meta Quest 3S & WebXR browsers.</div>
+
+        <div class="features-grid">
+            <div class="feature-box">
+                <h4>🏞️ 6 Explorable Zones</h4>
+                <p>Discover pine groves, mountain peaks, crystal caves, waterfalls, and ancient ruins.</p>
+            </div>
+            <div class="feature-box">
+                <h4>🔮 Relic Collection</h4>
+                <p>Search the landscape for 5 hidden glowing crystal artifacts.</p>
+            </div>
+            <div class="feature-box">
+                <h4>headset Meta Quest 3S Ready</h4>
+                <p>Seamless WebXR support with smooth thumbstick locomotion & laser interactions.</p>
+            </div>
+        </div>
+
+        <div class="welcome-btns">
+            <button class="btn-action" onclick="startWorld()">
+                🚀 Begin Exploration
+            </button>
+            <button class="btn-action btn-vr" onclick="startWorldVR()">
+                headset Launch in Quest 3S VR
+            </button>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         A-FRAME 3D SCENE CONFIGURATION
+         ========================================================================= -->
+    <a-scene 
+        webxr="optionalFeatures: hit-test, local-floor; referenceSpaceType: local-floor"
+        renderer="antialias: true; colorManagement: true; exposure: 0.95; shadowMapEnabled: true; highRefreshRate: true;"
+        zone-tracker
+        player-enhanced-controls
+        gltf-model="dracoDecoderPath: https://www.gstatic.com/draco/v1/decoders/">
+
+        <!-- Environment Lighting, Terrain & Atmosphere -->
+        <a-entity environment="
+            preset: forest; 
+            skyType: atmosphere; 
+            skyColor: #38bdf8; 
+            horizonColor: #bae6fd; 
+            groundColor: #2d5a27; 
+            groundColor2: #1e3e1a; 
+            dressing: trees; 
+            dressingAmount: 65; 
+            dressingColor: #1b4317; 
+            dressingScale: 1.2; 
+            grid: none; 
+            shadow: true; 
+            fog: 0.35; 
+            lightPosition: 30 45 -20">
+        </a-entity>
+
+        <!-- Sun & Directional Shadow Lighting -->
+        <a-entity light="type: directional; color: #fff8e7; intensity: 1.1; castShadow: true; shadowMapHeight: 1024; shadowMapWidth: 1024; shadowCameraFar: 60; shadowCameraTop: 30; shadowCameraRight: 30; shadowCameraBottom: -30; shadowCameraLeft: -30;" position="30 45 -20"></a-entity>
+        <a-entity light="type: ambient; color: #a5c9eb; intensity: 0.55"></a-entity>
+
+        <!-- Player Camera Rig (Locomotion & Quest 3S Controllers) -->
+        <a-entity id="rig" movement-controls="speed: 0.25; fly: false" position="0 0 10">
+            <!-- Camera & Look Controls -->
+            <a-entity id="camera" camera look-controls="pointerLockEnabled: false" position="0 1.6 0">
+                <!-- Cursor raycaster for mouse desktop click -->
+                <a-cursor id="cursor-desktop" raycaster="objects: .interactive; far: 12" cursor="fuse: false" material="color: #ffffff; shader: flat" position="0 0 -1" geometry="primitive: ring; radiusInner: 0.006; radiusOuter: 0.012"></a-cursor>
+            </a-entity>
+
+            <!-- Meta Quest 3S Left Hand VR Controller -->
+            <a-entity id="left-hand" 
+                oculus-touch-controls="hand: left" 
+                laser-controls="hand: left" 
+                raycaster="objects: .interactive; far: 10; showLine: true; lineOpacity: 0.7" 
+                line="color: #38bdf8; opacity: 0.7">
+            </a-entity>
+
+            <!-- Meta Quest 3S Right Hand VR Controller -->
+            <a-entity id="right-hand" 
+                oculus-touch-controls="hand: right" 
+                laser-controls="hand: right" 
+                raycaster="objects: .interactive; far: 10; showLine: true; lineOpacity: 0.7" 
+                line="color: #f59e0b; opacity: 0.7">
+            </a-entity>
+        </a-entity>
+
+        <!-- =========================================================================
+             WORLD LANDMARKS & EXPLORABLE ZONES
+             ========================================================================= -->
+
+        <!-- -------------------------------------------------------------------------
+             ZONE 1: WHISPERING VILLAGE & CABIN (Spawn Point x: 0, z: 10)
+             ------------------------------------------------------------------------- -->
+        <a-entity id="zone-village-group" position="0 0 6">
+            <!-- Cozy Wooden Cabin Structure -->
+            <!-- Base Walls -->
+            <a-box position="0 1.75 -6" width="5" height="3.5" depth="4" color="#5c3a21" shadow="cast: true; receive: true"></a-box>
+            <!-- Pitched Roof -->
+            <a-cone position="0 4.25 -6" radius-bottom="4" radius-top="0.2" height="1.8" segments-radial="4" rotation="0 45 0" color="#3a2212" shadow="cast: true"></a-cone>
+            <!-- Cabin Door -->
+            <a-entity position="-0.8 0 -4.01">
+                <a-box class="interactive" interactive-door position="0.6 1.3 0" width="1.2" height="2.5" depth="0.1" color="#8b5a2b" shadow="cast: true">
+                    <a-sphere position="0.4 0 0.08" radius="0.06" color="#f59e0b"></a-sphere>
+                </a-box>
+            </a-entity>
+            <!-- Porch Lantern -->
+            <a-entity position="1.5 2.6 -3.8" sway="speed: 1.5; amount: 4">
+                <a-cylinder radius="0.08" height="0.3" color="#1e293b"></a-cylinder>
+                <a-sphere position="0 -0.15 0" radius="0.12" color="#fbbf24" material="emissive: #fbbf24; emissiveIntensity: 0.8"></a-sphere>
+                <a-light type="point" color="#fbbf24" intensity="1.2" distance="8"></a-light>
+            </a-entity>
+
+            <!-- Village Signpost -->
+            <a-entity position="3 0 -1" rotation="0 -30 0">
+                <a-cylinder position="0 1 0" radius="0.08" height="2" color="#4a2e18" shadow="cast: true"></a-cylinder>
+                <a-box position="0 1.6 0" width="1.4" height="0.4" depth="0.08" color="#7c4a21" 
+                       interactive-sign="title: Whispering Village; text: Welcome traveler! Explore the valley to find 6 unique zones and 5 hidden relic crystals."
+                       shadow="cast: true">
+                    <a-text value="VILLAGE" align="center" position="0 0 0.05" width="3" color="#ffffff"></a-text>
+                </a-box>
+            </a-entity>
+
+            <!-- Central Bonfire -->
+            <a-entity position="0 0.1 0">
+                <a-ring rotation="-90 0 0" radius-inner="0.6" radius-outer="1.1" color="#475569" shadow="receive: true"></a-ring>
+                <a-cone position="0 0.3 0" radius-bottom="0.4" radius-top="0.05" height="0.6" color="#ef4444" material="emissive: #f97316; emissiveIntensity: 0.9" animation="property: scale; dir: alternate; loop: true; dur: 400; to: 1.1 1.25 1.1"></a-cone>
+                <a-light type="point" color="#f97316" intensity="1.5" distance="10" animation="property: intensity; dir: alternate; loop: true; dur: 300; to: 1.9"></a-light>
+            </a-entity>
+        </a-entity>
+
+        <!-- -------------------------------------------------------------------------
+             ZONE 2: MYSTIC PINE GROVE & ALTAR (x: -35, z: -25)
+             ------------------------------------------------------------------------- -->
+        <a-entity id="zone-forest-group" position="-35 0 -25">
+            <!-- Ancient Stone Altar Circle -->
+            <a-cylinder position="0 0.3 0" radius="3" height="0.6" color="#334155" shadow="cast: true; receive: true"></a-cylinder>
+            <!-- Pillar 1 -->
+            <a-box position="-2 1.8 -2" width="0.6" height="3" depth="0.6" color="#475569" shadow="cast: true"></a-box>
+            <!-- Pillar 2 -->
+            <a-box position="2 1.8 -2" width="0.6" height="3" depth="0.6" color="#475569" shadow="cast: true"></a-box>
+            <!-- Pillar 3 -->
+            <a-box position="0 1.8 2.2" width="0.6" height="3" depth="0.6" color="#475569" shadow="cast: true"></a-box>
+
+            <!-- Collectible Relic 1: Forest Rune -->
+            <a-octahedron position="0 1.5 0" radius="0.35" color="#10b981" material="emissive: #10b981; emissiveIntensity: 0.8" collectible-item="name: Forest Rune Crystal"></a-octahedron>
+            <a-light type="point" color="#10b981" intensity="1.2" distance="6" position="0 1.5 0"></a-light>
+
+            <!-- Dense Custom Pine Trees Cluster -->
+            <a-entity position="-6 0 -4" sway="speed: 1.2; amount: 2">
+                <a-cylinder position="0 1.5 0" radius="0.25" height="3" color="#3d2314"></a-cylinder>
+                <a-cone position="0 4 0" radius-bottom="1.8" height="3.5" color="#143811"></a-cone>
+                <a-cone position="0 5.8 0" radius-bottom="1.3" height="3" color="#1b4a17"></a-cone>
+            </a-entity>
+            <a-entity position="6 0 3" sway="speed: 1.5; amount: 2.5">
+                <a-cylinder position="0 1.5 0" radius="0.25" height="3" color="#3d2314"></a-cylinder>
+                <a-cone position="0 4 0" radius-bottom="1.9" height="3.5" color="#143811"></a-cone>
+            </a-entity>
+
+            <!-- Forest Info Sign -->
+            <a-box position="-3 1 -1" width="1.2" height="0.4" depth="0.08" color="#7c4a21" interactive-sign="title: Mystic Pine Grove; text: Ancient druids constructed this stone circle to harness the verdant magic of the forest.">
+                <a-text value="GROVE" align="center" position="0 0 0.05" width="2.5" color="#ffffff"></a-text>
+            </a-box>
+        </a-entity>
+
+        <!-- -------------------------------------------------------------------------
+             ZONE 3: MOUNTAIN PEAK & ELEVATED VIEWPOINT (x: 35, y: 10, z: -40)
+             ------------------------------------------------------------------------- -->
+        <a-entity id="zone-peak-group" position="35 0 -40">
+            <!-- Mountain Slope Terrain Base -->
+            <a-cone position="0 5 0" radius-bottom="18" height="10" color="#475569" segments-radial="7" shadow="cast: true; receive: true"></a-cone>
+
+            <!-- Elevated Lookout Pavilion Structure -->
+            <a-entity position="0 10 0">
+                <a-cylinder position="0 0.2 0" radius="3.5" height="0.4" color="#1e293b" shadow="cast: true"></a-cylinder>
+                <!-- Pavilion Support Columns -->
+                <a-cylinder position="-2.2 1.5 -2.2" radius="0.12" height="3" color="#64748b"></a-cylinder>
+                <a-cylinder position="2.2 1.5 -2.2" radius="0.12" height="3" color="#64748b"></a-cylinder>
+                <a-cylinder position="-2.2 1.5 2.2" radius="0.12" height="3" color="#64748b"></a-cylinder>
+                <a-cylinder position="2.2 1.5 2.2" radius="0.12" height="3" color="#64748b"></a-cylinder>
+                <!-- Roof -->
+                <a-cone position="0 3.8 0" radius-bottom="4.2" height="1.8" segments-radial="4" rotation="0 45 0" color="#0f172a"></a-cone>
+
+                <!-- Collectible Relic 2: Sky Crystal -->
+                <a-octahedron position="0 1.4 0" radius="0.35" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 0.9" collectible-item="name: Sky Crystal"></a-octahedron>
+                <a-light type="point" color="#38bdf8" intensity="1.5" distance="8" position="0 1.4 0"></a-light>
+
+                <!-- Brass Telescope Landmark -->
+                <a-cylinder position="1.8 1.1 0" radius="0.05" height="1.2" rotation="0 0 -25" color="#d97706" class="interactive" interactive-sign="title: Summit Telescope; text: Looking across the valley, you can see all 6 distinct landmarks bathed in sunlight."></a-cylinder>
+            </a-entity>
+        </a-entity>
+
+        <!-- -------------------------------------------------------------------------
+             ZONE 4: CRYSTAL RIVER & WATERFALL DOCK (x: -18, z: 25)
+             ------------------------------------------------------------------------- -->
+        <a-entity id="zone-river-group" position="-18 0 25">
+            <!-- Animated Translucent River Stream Surface -->
+            <a-plane position="0 0.05 0" rotation="-90 0 0" width="12" height="35" color="#0284c7" material="opacity: 0.82; transparent: true; roughness: 0.1" animation="property: position; dir: alternate; loop: true; dur: 2000; to: 0 0.08 0"></a-plane>
+
+            <!-- Wooden Fishing Dock Platform -->
+            <a-box position="3 0.2 0" width="3.5" height="0.2" depth="5" color="#78350f" shadow="cast: true; receive: true"></a-box>
+            <a-cylinder position="1.4 -0.3 2.2" radius="0.1" height="1.2" color="#451a03"></a-cylinder>
+            <a-cylinder position="4.4 -0.3 2.2" radius="0.1" height="1.2" color="#451a03"></a-cylinder>
+
+            <!-- Collectible Relic 3: Water Essence -->
+            <a-octahedron position="3 1.2 0" radius="0.3" color="#06b6d4" material="emissive: #06b6d4; emissiveIntensity: 0.85" collectible-item="name: Water Essence Gem"></a-octahedron>
+
+            <!-- River Reed Bushes & Rocks -->
+            <a-dodecahedron position="-2 0.3 4" radius="0.8" color="#64748b" shadow="cast: true"></a-dodecahedron>
+            <a-dodecahedron position="-3 0.4 -5" radius="1.1" color="#475569" shadow="cast: true"></a-dodecahedron>
+        </a-entity>
+
+        <!-- -------------------------------------------------------------------------
+             ZONE 5: HIDDEN CRYSTAL CAVE (x: 40, z: 20)
+             ------------------------------------------------------------------------- -->
+        <a-entity id="zone-cave-group" position="40 0 20">
+            <!-- Rock Boulder Cave Archway Entrance -->
+            <a-dodecahedron position="-2 1.5 0" radius="2" color="#334155" shadow="cast: true"></a-dodecahedron>
+            <a-dodecahedron position="2 1.5 0" radius="2" color="#334155" shadow="cast: true"></a-dodecahedron>
+            <a-dodecahedron position="0 3.2 0" radius="2.2" color="#1e293b" shadow="cast: true"></a-dodecahedron>
+
+            <!-- Glowing Cave Interior Crystals -->
+            <a-octahedron position="-1 1 -2" radius="0.4" color="#a855f7" material="emissive: #a855f7; emissiveIntensity: 0.9" animation="property: rotation; to: 360 360 0; loop: true; dur: 8000; easing: linear"></a-octahedron>
+            <a-light type="point" color="#a855f7" intensity="1.4" distance="7" position="-1 1 -2"></a-light>
+
+            <a-octahedron position="1.2 1.3 -3" radius="0.5" color="#ec4899" material="emissive: #ec4899; emissiveIntensity: 0.9" animation="property: rotation; to: 0 360 360; loop: true; dur: 7000; easing: linear"></a-octahedron>
+
+            <!-- Collectible Relic 4: Shadow Gem -->
+            <a-octahedron position="0 1.2 -4" radius="0.38" color="#f43f5e" material="emissive: #f43f5e; emissiveIntensity: 0.9" collectible-item="name: Shadow Gem"></a-octahedron>
+
+            <!-- Cave Signboard -->
+            <a-box position="2.2 0.8 1.5" width="1.2" height="0.4" depth="0.08" color="#7c4a21" interactive-sign="title: Luminescent Cavern; text: Deep inside these rock walls, rare crystal geodes glow with natural bioluminescence.">
+                <a-text value="CAVE" align="center" position="0 0 0.05" width="2.5" color="#ffffff"></a-text>
+            </a-box>
+        </a-entity>
+
+        <!-- -------------------------------------------------------------------------
+             ZONE 6: ANCIENT RUINS WATCHTOWER (x: 0, z: -55)
+             ------------------------------------------------------------------------- -->
+        <a-entity id="zone-ruins-group" position="0 0 -55">
+            <!-- Broken Arch Pillars -->
+            <a-cylinder position="-3 2.5 0" radius="0.4" height="5" color="#64748b" shadow="cast: true"></a-cylinder>
+            <a-cylinder position="3 2.5 0" radius="0.4" height="5" color="#64748b" shadow="cast: true"></a-cylinder>
+            <a-box position="0 4.8 0" width="7" height="0.6" depth="0.8" color="#475569" shadow="cast: true"></a-box>
+
+            <!-- Ancient Relic Chest -->
+            <a-box position="0 0.5 -2" width="1.4" height="0.8" depth="0.9" color="#854d0e" shadow="cast: true; receive: true"></a-box>
+            <!-- Collectible Relic 5: Sun Key Crystal -->
+            <a-octahedron position="0 1.4 -2" radius="0.35" color="#f59e0b" material="emissive: #f59e0b; emissiveIntensity: 0.9" collectible-item="name: Sun Key Crystal"></a-octahedron>
+            <a-light type="point" color="#f59e0b" intensity="1.5" distance="8" position="0 1.4 -2"></a-light>
+
+            <!-- Ruins Landmark Sign -->
+            <a-box position="-2.2 1 -0.5" width="1.3" height="0.4" depth="0.08" color="#7c4a21" interactive-sign="title: Ancient Sun Watchtower; text: Standing for over a millennium, this tower once guarded the entire northern boundary of the realm.">
+                <a-text value="RUINS" align="center" position="0 0 0.05" width="2.5" color="#ffffff"></a-text>
+            </a-box>
+        </a-entity>
+
+        <!-- -------------------------------------------------------------------------
+             PATHWAYS & NATURAL DECORATIONS (Rocks, Trees, Bridges)
+             ------------------------------------------------------------------------- -->
+        <!-- Wooden Bridge over River near Village -->
+        <a-entity position="-10 0.1 6">
+            <a-box position="0 0 0" width="5" height="0.15" depth="2" color="#78350f" shadow="cast: true; receive: true"></a-box>
+            <a-box position="-2.4 0.4 0" width="0.1" height="0.7" depth="2" color="#451a03"></a-box>
+            <a-box position="2.4 0.4 0" width="0.1" height="0.7" depth="2" color="#451a03"></a-box>
+        </a-entity>
+
+        <!-- Scattered Rocks & Decorative Vegetation -->
+        <a-dodecahedron position="8 0.4 4" radius="0.7" color="#64748b" shadow="cast: true"></a-dodecahedron>
+        <a-dodecahedron position="-12 0.6 -10" radius="1.2" color="#475569" shadow="cast: true"></a-dodecahedron>
+        <a-dodecahedron position="18 0.5 -15" radius="0.9" color="#334155" shadow="cast: true"></a-dodecahedron>
+
+        <!-- Dynamic Clouds Moving in Sky -->
+        <a-entity id="clouds-group" position="0 35 0">
+            <a-sphere position="-20 0 -40" radius="6" color="#ffffff" material="opacity: 0.75; transparent: true" animation="property: position; to: 40 0 -40; loop: true; dur: 45000; easing: linear"></a-sphere>
+            <a-sphere position="30 5 -20" radius="8" color="#ffffff" material="opacity: 0.7; transparent: true" animation="property: position; to: -40 5 -20; loop: true; dur: 60000; easing: linear"></a-sphere>
+        </a-entity>
+
+    </a-scene>
+
+    <!-- =========================================================================
+         UI INTERACTION & WEBXR SESSION CONTROLLER SCRIPTS
+         ========================================================================= -->
+    <script>
+        // Start World from Welcome Overlay
+        function startWorld() {
+            SoundFX.playClick();
+            document.getElementById('welcome-overlay').classList.add('hidden');
+        }
+
+        // Start Directly in VR Mode (Meta Quest 3S)
+        function startWorldVR() {
+            startWorld();
+            enterVRSession();
+        }
+
+        // Enter WebXR VR Session
+        function enterVRSession() {
+            SoundFX.playClick();
+            const sceneEl = document.querySelector('a-scene');
+            if (sceneEl.hasLoaded) {
+                sceneEl.enterVR();
+            } else {
+                sceneEl.addEventListener('loaded', () => sceneEl.enterVR());
+            }
+        }
+
+        // Close Lore Info Modal
+        function closeModal() {
+            SoundFX.playClick();
+            document.getElementById('info-modal').classList.remove('active');
+        }
+
+        // Listen for WebXR VR Enter/Exit events to hide 2D UI overlay in VR
+        document.addEventListener('DOMContentLoaded', () => {
+            const sceneEl = document.querySelector('a-scene');
+            const uiLayer = document.getElementById('ui-layer');
+
+            sceneEl.addEventListener('enter-vr', () => {
+                uiLayer.classList.add('vr-hidden');
+            });
+
+            sceneEl.addEventListener('exit-vr', () => {
+                uiLayer.classList.remove('vr-hidden');
+            });
+        });
+    </script>
+</body>
+
+</html>
